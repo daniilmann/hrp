@@ -67,3 +67,4 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
             idx = self.strategyList.selectedIndexes()[0].row()
             del self._strategies[idx]
             self.strategyListModel.removeRow(idx)
+

@@ -143,6 +143,3 @@ class WeightHRP(Algo):
     @property
     def ptype(self):
         return self._ptype
-
-if __name__ == '__main__':
-    pass
