@@ -1,30 +1,63 @@
 # -*- encode: utf-8 -*-
 
+from dateutil import relativedelta
+from functools import partial
+
+import numpy as np
+import pandas as pd
+
 import bt
 from bt import algos
-from hrp import WeightHRP
-
+from ffn import fmtp, fmtn
+from hrp import WeightHRP, SaveWeights, GapWeights
 
 class TestStrategy(object):
 
     def __init__(self) -> None:
         super().__init__()
 
-        self.est_plen = None
+        self.init_balance = 0.0
+
+        self.prc_fee = 0.0
+        self.fix_fee = 0.0
+
+        self.reb_gap = 0.0
+        self.robust = False
+
+        self.est_plen = 0
         self.est_ptype = 'n'
 
-        self.roll_plen = None
+        self.roll_plen = 0
         self.roll_ptype = 'n'
 
-        self.fee = None
-
     def __str__(self) -> str:
-        return 'e{}{}-r{}{}'.format(self.est_plen, self.est_ptype[0], self.roll_plen, self.roll_ptype[0])
+        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f}% | Gap {:.4f}% | Cov {:6} | Balance {:.2f}'.format(
+            self.est_plen, self.est_ptype,
+            self.roll_plen, self.roll_ptype,
+            self.fix_fee, self.prc_fee,
+            self.reb_gap, 'OAS' if self.robust else 'Simple',
+            self.init_balance)
         # return 'Estimation {} {} | Roll {} {}'.format(self.est_plen, self.est_ptype, self.roll_plen, self.roll_ptype)
+
+    def name(self):
+        return 'e{}{}-r{}{}ff{}pf{}g{}c{}b{}'.format(
+            self.est_plen, self.est_ptype,
+            self.roll_plen, self.roll_ptype,
+            self.fix_fee, self.prc_fee,
+            self.reb_gap, 'R' if self.robust else 'S',
+            int(self.init_balance))
 
     def __eq__(self, o: object) -> bool:
         if isinstance(o, TestStrategy):
-            return self.est_plen == o.est_plen and self.est_ptype == o.est_ptype and self.roll_plen == o.roll_plen and self.roll_ptype == o.roll_ptype
+            return self.est_plen == o.est_plen \
+                   and self.est_ptype == o.est_ptype \
+                   and self.roll_plen == o.roll_plen \
+                   and self.roll_ptype == o.roll_ptype \
+                   and self.init_balance == o.init_balance \
+                   and self.reb_gap == o.reb_gap \
+                   and self.prc_fee == o.prc_fee \
+                   and self.fix_fee == o.fix_fee \
+                   and self.robust == o.robust
         return False
 
     def __hash__(self) -> int:
@@ -34,39 +67,56 @@ class TestStrategy(object):
         hsh = p * hsh + hash(self.est_ptype)
         hsh = p * hsh + hash(self.roll_plen)
         hsh = p * hsh + hash(self.roll_ptype)
+        hsh = p * hsh + hash(self.init_balance)
+        hsh = p * hsh + hash(self.reb_gap)
+        hsh = p * hsh + hash(self.prc_fee)
+        hsh = p * hsh + hash(self.fix_fee)
+        hsh = p * hsh + hash(self.robust)
         return hsh
 
-    @property
-    def name(self):
-        try:
-            return '{}{}{}{}'.format(self.est_plen, self.est_ptype[0], self.roll_plen, self.roll_ptype[0])
-        except:
-            return None
 
+    def bt_strategy(self, data):
 
-def bt_strategy(strat, data, capital):
+        rsmpl = {
+            'days': 'B',
+            'weeks': 'W-Fri',
+            'months': 'BM',
+            'years': 'BY'
+        }[self.roll_ptype]
 
-    rsmpl = {
-        'days': 'B',
-        'weeks': 'W-Fri',
-        'months': 'BM',
-        'years': 'BY'
-    }[strat.roll_ptype]
+        first_date = data.index[0] + relativedelta(**{self.est_ptype: self.est_plen})
+        run_dates = data.resample(rsmpl).last()
+        run_dates = run_dates.loc[run_dates.index > first_date]
+        run_dates = run_dates.iloc[:-1]
+        run_dates.loc[data.index[-1]] = data.iloc[-1]
 
-    first_date = data.index[0] + relativedelta(**{strat.est_ptype: strat.est_plen})
-    run_dates = data.resample(rsmpl).last()
-    run_dates = run_dates.loc[run_dates.index > first_date]
-    run_dates = run_dates.iloc[:-1]
-    run_dates.loc[data.index[-1]] = data.iloc[-1]
+        # algo_stack = [
+        #     algos.RunOnDate(*run_dates.index.tolist()),
+        #     algos.SelectAll()
+        # ]
+        # if self.reb_gap != 0.0:
+        #     algo_stack.extend([
+        #         SaveWeights(),
+        #         WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust),
+        #         GapWeights(self.reb_gap)
+        #     ])
+        # else:
+        #     algo_stack.append(WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust))
+        # algo_stack.append(algos.Rebalance())
 
-    strategy = bt.Strategy(str(strat), [
-        algos.RunOnDate(*run_dates.index.tolist()),
-        algos.SelectAll(),
-        WeightHRP(plen=strat.est_plen, ptype=strat.est_ptype),
-        algos.Rebalance()
-    ])
+        strategy = bt.Strategy(self.name(), [
+            algos.RunOnDate(*run_dates.index.tolist()),
+            algos.SelectAll(),
+            SaveWeights(),
+            WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust),
+            GapWeights(self.reb_gap),
+            algos.Rebalance()
+        ])
 
-    return bt.Backtest(strategy, data.copy(), initial_capital=capital)
+        fee_func = partial(lambda q, p, ff, pf: np.max([ff, pf*p*q]), ff=self.fix_fee, pf=self.prc_fee)
+
+        return bt.Backtest(strategy, data.copy(), initial_capital=self.init_balance,
+                           commissions=fee_func)
 
 
 def make_stats(res):

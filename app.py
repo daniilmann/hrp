@@ -3,15 +3,25 @@
 from PyQt5 import QtWidgets as qtw, QtCore as qtc, QtGui as qtgui
 import design
 
-from strategy import TestStrategy, bt_strategy, make_stats
+from strategy import TestStrategy, make_stats
 import bt
 from ffn import fmtp
 
 import pandas as pd
+import numpy as np
 import re
 from os import makedirs
 from os.path import dirname, exists, join
 import sys
+from dataclasses import dataclass
+
+
+class ERPeriod(object):
+
+    def __init__(self, plen, ptype):
+
+        self.plen = plen
+        self.ptype = ptype
 
 
 class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
@@ -47,6 +57,32 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         self.removeStrategyBtn.clicked.connect(self.remove_strategy)
         self.reportFileBtn.clicked.connect(self.select_report_dir)
 
+        self.runTestButton.clicked.connect(self.run_test)
+
+    @property
+    def data_path(self):
+        return self.dataFileEdit.text()
+
+    @property
+    def initial_balance(self):
+        return self.moneyBox.value()
+
+    @property
+    def fix_fee(self):
+        return self.fixfeeSpin.value()
+
+    @property
+    def prc_fee(self):
+        return np.round(self.prcfeeSpin.value() / 100.0, 6)
+
+    @property
+    def est_period(self):
+        return ERPeriod(self.estPeriodSpin.value(), self.estTypeCombo.currentText())
+
+    @property
+    def roll_period(self):
+        return ERPeriod(self.rollPeriodSpin.value(), self.rollTypeCombo.currentText())
+
     def select_data_path(self):
         dataPath = qtw.QFileDialog.getOpenFileUrl(self, caption='Select Data File')[0]
 
@@ -62,6 +98,11 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
     def add_strategy(self):
         strategy = TestStrategy()
 
+        strategy.init_balance = self.initial_balance
+        strategy.fix_fee = self.fix_fee
+        strategy.prc_fee = self.prc_fee
+        strategy.reb_gap = self.rebgapSpin.value()
+        strategy.robust = self.covCheckBox.isChecked()
         strategy.est_plen = self.estPeriodSpin.value()
         strategy.est_ptype = self.estTypeCombo.currentText()
         strategy.roll_plen = self.estPeriodSpin.value()
@@ -103,7 +144,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     data = data.loc[idxs]
 
             if len(self._strategies) and data:
-                    backtests = [bt_strategy(s, data, float(self.capitalEdit.text())) for s in self._strategies]
+                    backtests = [s.bt_strategy(data) for s in self._strategies]
                     res = bt.run(*backtests)
                     stats = make_stats(res)
                     bdf = {b.name: pd.concat((b.weights, b.positions, b.turnover), axis=1) for b in backtests}

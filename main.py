@@ -37,7 +37,7 @@ def parse_config(conf_path):
                 strategies[-1].roll_plen = int(s[2])
                 strategies[-1].roll_ptype = s[3]
                 if len(s) ==5:
-                    strategies[-1].fee = float(s[4])
+                    strategies[-1].prc_fee = float(s[4])
 
             config['strategies'] = strategies
 

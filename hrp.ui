@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>440</height>
+    <width>1146</width>
+    <height>451</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -21,7 +21,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>600</width>
+    <width>945</width>
     <height>440</height>
    </size>
   </property>
@@ -40,6 +40,9 @@
      <layout class="QHBoxLayout" name="mainLayout">
       <item>
        <layout class="QVBoxLayout" name="configLayout">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetMinimumSize</enum>
+        </property>
         <item>
          <layout class="QVBoxLayout" name="dataLayout">
           <property name="spacing">
@@ -275,7 +278,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton">
+         <widget class="QPushButton" name="runTestButton">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -347,6 +350,15 @@
             <height>25</height>
            </size>
           </property>
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>999999999</number>
+          </property>
+          <property name="value">
+           <number>1000000</number>
+          </property>
          </widget>
         </item>
         <item>
@@ -385,7 +397,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QDoubleSpinBox" name="doubleSpinBox">
+             <widget class="QDoubleSpinBox" name="prcfeeSpin">
               <property name="minimumSize">
                <size>
                 <width>0</width>
@@ -415,6 +427,30 @@
                 <width>0</width>
                 <height>25</height>
                </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="covLayout">
+            <item>
+             <widget class="QLabel" name="covLabel">
+              <property name="text">
+               <string>Covariance matrix</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="covCheckBox">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>25</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>OAS (robust)</string>
               </property>
              </widget>
             </item>
@@ -584,7 +620,7 @@
           </property>
           <property name="minimumSize">
            <size>
-            <width>200</width>
+            <width>800</width>
             <height>60</height>
            </size>
           </property>
@@ -608,7 +644,7 @@
   <tabstop>removeStrategyBtn</tabstop>
   <tabstop>reportFileBtn</tabstop>
   <tabstop>reportFileEdit</tabstop>
-  <tabstop>pushButton</tabstop>
+  <tabstop>runTestButton</tabstop>
  </tabstops>
  <resources/>
  <connections/>

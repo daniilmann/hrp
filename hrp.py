@@ -6,10 +6,12 @@ import re
 
 import numpy as np
 import pandas as pd
+pd.core.common.is_list_like = pd.api.types.is_list_like
 import sklearn
-from scipy.cluster.hierarchy import linkage, dendrogram
+from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 
 from bt import Algo
+from matplotlib import pyplot as plt
 
 
 #hrp
@@ -52,7 +54,7 @@ def getQuasiDiag(link):
 def getRecBipart(cov, sortIx):
     # Compute HRP alloc
     w = pd.Series(1, index=sortIx)
-    cItems = [sortIx]  # initialize all items in one cluster
+    cItems = sortIx  # initialize all items in one cluster
     while len(cItems) > 0:
         cItems = [i[j:k] for i in cItems for j, k in ((0, len(i) // 2),
                                                       (len(i) // 2, len(i))) if len(i) > 1]  # bi-section
@@ -94,13 +96,30 @@ def get_weights(closes, robust):
     corr = cov2cor(ret.cov() if robust else cov_robust(ret))
     dist = distance(corr)
     link = linkage(dist, 'ward')
-    quasiIdx = dendrogram(link)['leaves']
-    weights = getRecBipart(ret.cov(), quasiIdx)
+    quasiIdx = np.array(dendrogram(link)['leaves'])
+    clusters = quasiIdx
+    # acceleration = np.diff(link[:, 2], 2)[::-1]
+    # # ck = np.where(acceleration >= np.mean(acceleration))[0][-1] + 2
+    # ck = acceleration.argmax() + 2
+    # cluster_idx = fcluster(link, ck, criterion='maxclust') - 1
+    # clusters = pd.Series()
+    # cidx = []
+    # for cn in np.unique(cluster_idx):
+    #     idx = np.where(cluster_idx == cn)[0]
+    #     cidx = np.where(cluster_idx ==cn)[0][0]
+    #     clusters.loc[cidx] = quasiIdx[idx]
+    # clusters = clusters.sort_index().values
+    weights = getRecBipart(ret.cov(), clusters)
     weights.index = closes.columns[weights.index]
 
     return weights.round(4)
 
 #hrp
+
+
+def adjust_weights(weights):
+
+    pass
 
 
 class WeightHRP(Algo):
@@ -143,3 +162,58 @@ class WeightHRP(Algo):
     @property
     def ptype(self):
         return self._ptype
+
+
+class SaveWeights(Algo):
+
+    def __call__(self, target):
+
+        target.temp['old_weights'] = target.temp['weights'].copy()
+
+        return True
+
+
+class GapWeights(object):
+
+    def __init__(self, gap):
+        # super().__init__()
+
+        self._gap = gap
+
+    @property
+    def gap(self):
+        return self._gap
+
+    def __call__(self, target):
+
+        ow = target.temp['old_weights']
+        nw = target.temp['weights']
+        mw = target.temp['weights'].copy()
+
+        wd = np.abs(nw - ow)
+        wgi = np.where(wd < self.gap)[0]
+
+        fw = 0.0
+        for wix in wgi:
+            fw += np.round(np.abs(nw[wix] - ow[wix]), 2)
+            mw[wix] = ow[wix]
+
+        return True
+
+
+class TMP():
+
+    def __init__(self):
+        self.temp = dict()
+
+
+if __name__ == '__main__':
+
+    tmp = TMP()
+    tmp.temp = {
+        'old_weights': np.array([0.2, .3, .5]),
+        'weights': np.array([0.25, .5, .25])
+    }
+
+    gapw = GapWeights(0.1)
+    gapw(tmp)
