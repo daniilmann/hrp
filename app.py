@@ -13,7 +13,6 @@ import re
 from os import makedirs
 from os.path import dirname, exists, join
 import sys
-from dataclasses import dataclass
 
 
 class ERPeriod(object):
@@ -137,9 +136,9 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                 data = data.fillna(method='pad')
 
                 idxs = None
-                if self.startDatePicker.text():
+                if self.startDateCBox.isChecked():
                     idxs = data.index >= self.startDatePicker.text()
-                if self.endDatePicker.text():
+                if self.endDateCBox.isChecked():
                     idxs = data.index <= self.endDatePicker.text() if idxs is None else (idxs) & (data.index <= self.endDatePicker.text())
                 if idxs is not None:
                     data = data.loc[idxs]

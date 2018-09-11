@@ -13,6 +13,10 @@ from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from bt import Algo
 from matplotlib import pyplot as plt
 
+from scipy.sparse import csr_matrix
+# from scipy.sparse.csgraph import minimum_spanning_tree
+import networkx as nx
+
 
 #hrp
 
@@ -111,6 +115,21 @@ def get_weights(closes, robust):
     # clusters = clusters.sort_index().values
     weights = getRecBipart(ret.cov(), clusters)
     weights.index = closes.columns[weights.index]
+
+    widxed = weights.loc[corr.index].values
+    names = [s.replace(' ', '\n') for s in corr.columns]
+    corr.index = names
+    corr.columns = names
+    corr = ((corr - corr.min()) / corr.max()).round(2)
+    mst = nx.minimum_spanning_tree(nx.from_pandas_adjacency(corr))
+
+    fs = np.min((20, len(weights)))
+    plt.figure(figsize=(fs, fs), dpi=80)
+    plt.legend(title='Assets', loc=7)
+    nx.draw(mst, with_labels=True, node_size=widxed * 10000, node_color="skyblue",
+            node_shape="o",
+            alpha=0.75, linewidths=4)
+    plt.savefig('mst.png')
 
     return weights
 
@@ -233,16 +252,14 @@ class GapWeights(object):
 
         wd = np.abs(nw - ow).round(self.wround)
         wd = wd[wd != 0.0]
-        wgi = mw.index.values[np.where(wd < self.gap)[0]]
+        wgi = wd[np.where(wd < self.gap)[0]].index.values
 
-        fw = 0.0
-        for wix in wgi:
-            fw += np.round(np.abs(nw[wix] - ow[wix]), 2)
-            mw[wix] = ow[wix]
+        fw = np.abs(nw[wgi] - ow[wgi]).sum().round(self.wround)
+        mw[wgi] = ow[wgi]
 
-        if fw != 0.0:
-            weights = mw.loc[[i for i in mw.index if i not in wgi]]
-            weights = adjust_weights(weights, fw, mw.loc[wgi].sum(), self.gap, self.wround)
+        if mw.sum().round(self.wround) != 1.0:
+            weights = mw[mw != ow]
+            weights = adjust_weights(weights, np.round(mw.sum().round(self.wround), self.wround), mw.loc[wgi].sum(), self.gap, self.wround)
             mw[weights.index] = weights
 
             target.temp['weights'] = mw.copy().to_dict()
