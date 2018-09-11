@@ -101,7 +101,8 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy.init_balance = self.initial_balance
         strategy.fix_fee = self.fix_fee
         strategy.prc_fee = self.prc_fee
-        strategy.reb_gap = self.rebgapSpin.value()
+        strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 4)
+        strategy.weight_round = int(self.decimalSpin.value() + 2)
         strategy.robust = self.covCheckBox.isChecked()
         strategy.est_plen = self.estPeriodSpin.value()
         strategy.est_ptype = self.estTypeCombo.currentText()
@@ -143,7 +144,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                 if idxs is not None:
                     data = data.loc[idxs]
 
-            if len(self._strategies) and data:
+            if len(self._strategies) and data is not None:
                     backtests = [s.bt_strategy(data) for s in self._strategies]
                     res = bt.run(*backtests)
                     stats = make_stats(res)

@@ -383,6 +383,9 @@
                 <height>25</height>
                </size>
               </property>
+              <property name="maximum">
+               <double>100000.000000000000000</double>
+              </property>
              </widget>
             </item>
            </layout>
@@ -427,6 +430,30 @@
                 <width>0</width>
                 <height>25</height>
                </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="decimalLayout">
+            <item>
+             <widget class="QLabel" name="decimalLabel">
+              <property name="text">
+               <string>Weights rounding</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="decimalSpin">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>25</height>
+               </size>
+              </property>
+              <property name="maximum">
+               <number>6</number>
               </property>
              </widget>
             </item>

@@ -54,7 +54,7 @@ def getQuasiDiag(link):
 def getRecBipart(cov, sortIx):
     # Compute HRP alloc
     w = pd.Series(1, index=sortIx)
-    cItems = sortIx  # initialize all items in one cluster
+    cItems = [sortIx]  # initialize all items in one cluster
     while len(cItems) > 0:
         cItems = [i[j:k] for i in cItems for j, k in ((0, len(i) // 2),
                                                       (len(i) // 2, len(i))) if len(i) > 1]  # bi-section
@@ -112,22 +112,45 @@ def get_weights(closes, robust):
     weights = getRecBipart(ret.cov(), clusters)
     weights.index = closes.columns[weights.index]
 
-    return weights.round(4)
+    return weights
 
 #hrp
 
 
-def adjust_weights(weights):
+def adjust_weights(weights, free, other, gap, round):
 
-    pass
+    weights = weights.copy()
+
+    n = 1
+    while np.round(free / n, round) > gap:
+        n += 1
+    n = np.max((n - 1, 1))
+
+    wta = np.round(free / n, round)
+
+    for vix in weights.sort_values().index[:n]:
+        weights.loc[vix] += wta
+
+    weights = weights.round(round)
+
+    if np.round(weights.sum() + other, 0) != 1:
+        weights.loc[weights.idxmin()] += 1 - np.round(weights.sum() + other, round)
+
+        weights = weights.round(round)
+
+        if np.round(weights.sum() + other, 0) != 1:
+            return adjust_weights(weights, np.round(1 - weights.sum() - other, round), other, gap, round)
+
+    return weights
 
 
 class WeightHRP(Algo):
 
-    def __init__(self, plen, ptype, robust=False):
+    def __init__(self, plen, ptype, robust=False, weight_round=2):
         super().__init__()
 
         self._robust = robust
+        self._weight_round = weight_round
         self._plen = plen
         self._ptype = ptype
 
@@ -147,7 +170,11 @@ class WeightHRP(Algo):
             idx = index[index.year == idx.year][-1]
 
         prices = target.universe[selected].loc[idx: target.now].copy()
-        target.temp['weights'] = get_weights(prices, self.robust).to_dict()
+        weights = get_weights(prices, self.robust).round(self.wround)
+        if weights.sum().round(2) != 1.0:
+            weights = adjust_weights(weights, np.round(1 - weights.sum(), self.wround), 0, 0, self.wround)
+        target.temp['weights'] = weights.to_dict()
+        target.perm['weights'] = weights.to_dict()
 
         return True
 
@@ -163,57 +190,62 @@ class WeightHRP(Algo):
     def ptype(self):
         return self._ptype
 
+    @property
+    def wround(self):
+        return self._weight_round
 
 class SaveWeights(Algo):
 
     def __call__(self, target):
 
-        target.temp['old_weights'] = target.temp['weights'].copy()
+        if 'weights' not in target.perm.keys():
+            return True
+
+        target.temp['old_weights'] = target.perm['weights'].copy()
 
         return True
 
 
 class GapWeights(object):
 
-    def __init__(self, gap):
+    def __init__(self, gap, weight_round=2):
         # super().__init__()
 
         self._gap = gap
+        self._wround = weight_round
 
     @property
     def gap(self):
         return self._gap
 
+    @property
+    def wround(self):
+        return self._wround
+
     def __call__(self, target):
 
-        ow = target.temp['old_weights']
-        nw = target.temp['weights']
-        mw = target.temp['weights'].copy()
+        if 'old_weights' not in target.temp.keys():
+            return True
 
-        wd = np.abs(nw - ow)
-        wgi = np.where(wd < self.gap)[0]
+        ow = pd.Series(target.temp['old_weights'])
+        nw = pd.Series(target.temp['weights'])
+        mw = pd.Series(target.temp['weights'].copy())
+
+        wd = np.abs(nw - ow).round(self.wround)
+        wd = wd[wd != 0.0]
+        wgi = mw.index.values[np.where(wd < self.gap)[0]]
 
         fw = 0.0
         for wix in wgi:
             fw += np.round(np.abs(nw[wix] - ow[wix]), 2)
             mw[wix] = ow[wix]
 
+        if fw != 0.0:
+            weights = mw.loc[[i for i in mw.index if i not in wgi]]
+            weights = adjust_weights(weights, fw, mw.loc[wgi].sum(), self.gap, self.wround)
+            mw[weights.index] = weights
+
+            target.temp['weights'] = mw.copy().to_dict()
+            target.perm['weights'] = mw.copy().to_dict()
+
         return True
-
-
-class TMP():
-
-    def __init__(self):
-        self.temp = dict()
-
-
-if __name__ == '__main__':
-
-    tmp = TMP()
-    tmp.temp = {
-        'old_weights': np.array([0.2, .3, .5]),
-        'weights': np.array([0.25, .5, .25])
-    }
-
-    gapw = GapWeights(0.1)
-    gapw(tmp)

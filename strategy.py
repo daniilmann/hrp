@@ -1,6 +1,6 @@
 # -*- encode: utf-8 -*-
 
-from dateutil import relativedelta
+from dateutil.relativedelta import relativedelta
 from functools import partial
 
 import numpy as np
@@ -22,6 +22,7 @@ class TestStrategy(object):
         self.fix_fee = 0.0
 
         self.reb_gap = 0.0
+        self.weight_round = 0
         self.robust = False
 
         self.est_plen = 0
@@ -31,7 +32,7 @@ class TestStrategy(object):
         self.roll_ptype = 'n'
 
     def __str__(self) -> str:
-        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f}% | Gap {:.4f}% | Cov {:6} | Balance {:.2f}'.format(
+        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Gap {:.4f} | Cov {:6} | Balance {:.2f}'.format(
             self.est_plen, self.est_ptype,
             self.roll_plen, self.roll_ptype,
             self.fix_fee, self.prc_fee,
@@ -40,9 +41,9 @@ class TestStrategy(object):
         # return 'Estimation {} {} | Roll {} {}'.format(self.est_plen, self.est_ptype, self.roll_plen, self.roll_ptype)
 
     def name(self):
-        return 'e{}{}-r{}{}ff{}pf{}g{}c{}b{}'.format(
-            self.est_plen, self.est_ptype,
-            self.roll_plen, self.roll_ptype,
+        return 'e{}{}r{}{}ff{}pf{}g{}c{}b{}'.format(
+            self.est_plen, self.est_ptype[0],
+            self.roll_plen, self.roll_ptype[0],
             self.fix_fee, self.prc_fee,
             self.reb_gap, 'R' if self.robust else 'S',
             int(self.init_balance))
