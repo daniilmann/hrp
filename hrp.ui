@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>945</width>
+    <width>1145</width>
     <height>440</height>
    </rect>
   </property>
@@ -21,7 +21,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>945</width>
+    <width>1145</width>
     <height>440</height>
    </size>
   </property>
@@ -357,7 +357,7 @@
            <number>999999999</number>
           </property>
           <property name="value">
-           <number>1000000</number>
+           <number>10000000</number>
           </property>
          </widget>
         </item>

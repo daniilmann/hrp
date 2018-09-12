@@ -13,6 +13,7 @@ import re
 from os import makedirs
 from os.path import dirname, exists, join
 import sys
+import traceback
 
 
 class ERPeriod(object):
@@ -105,7 +106,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy.robust = self.covCheckBox.isChecked()
         strategy.est_plen = self.estPeriodSpin.value()
         strategy.est_ptype = self.estTypeCombo.currentText()
-        strategy.roll_plen = self.estPeriodSpin.value()
+        strategy.roll_plen = self.rollPeriodSpin.value()
         strategy.roll_ptype = self.rollTypeCombo.currentText()
 
         if strategy not in self._strategies:
@@ -147,9 +148,10 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     backtests = [s.bt_strategy(data) for s in self._strategies]
                     res = bt.run(*backtests)
                     stats = make_stats(res)
-                    bdf = {b.name: pd.concat((b.weights, b.positions, b.turnover), axis=1) for b in backtests}
+                    bdf = {b.name: pd.concat((b.strategy.data, b.weights, b.positions, b.turnover), axis=1) for b in backtests}
                     pattern = re.compile('.*>')
-                    columns = ['W_' + pattern.sub('', c) for c in backtests[0].weights.columns]
+                    columns = backtests[0].strategy.data.columns.tolist()
+                    columns.extend(['W_' + pattern.sub('', c) for c in backtests[0].weights.columns])
                     columns.extend(['POS_' + pattern.sub('', c) for c in backtests[0].positions.columns])
                     columns.append('Turnover')
 
@@ -166,7 +168,9 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                         df.to_excel(writer, name)
 
                     writer.save()
+                    qtw.QMessageBox.information(self, "I'm ready", "I'm ready")
             else:
                 qtw.QMessageBox.critical(self, "No strategies", "Add strategies")
         except:
             qtw.QMessageBox.critical(self, 'Something wrong T_T', str(sys.exc_info()))
+            traceback.print_tb(sys.exc_info()[2])

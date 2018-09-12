@@ -9,7 +9,12 @@ import pandas as pd
 import bt
 from bt import algos
 from ffn import fmtp, fmtn
-from hrp import WeightHRP, SaveWeights, GapWeights
+from hrp import WeightHRP, SaveWeights, GapWeights, CheckFeeBankrupt
+
+
+def fee_func(q, p, ff, pf):
+    return np.max([ff, pf * p * np.abs(q)])
+
 
 class TestStrategy(object):
 
@@ -105,19 +110,20 @@ class TestStrategy(object):
         #     algo_stack.append(WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust))
         # algo_stack.append(algos.Rebalance())
 
+        fee_func_parial = partial(fee_func, ff=self.fix_fee, pf=self.prc_fee)
+
         strategy = bt.Strategy(self.name(), [
             algos.RunOnDate(*run_dates.index.tolist()),
             algos.SelectAll(),
             SaveWeights(),
             WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust),
             GapWeights(self.reb_gap),
+            CheckFeeBankrupt(fee_func_parial),
             algos.Rebalance()
         ])
 
-        fee_func = partial(lambda q, p, ff, pf: np.max([ff, pf*p*q]), ff=self.fix_fee, pf=self.prc_fee)
-
         return bt.Backtest(strategy, data.copy(), initial_capital=self.init_balance,
-                           commissions=fee_func)
+                           commissions=fee_func_parial, integer_positions=False)
 
 
 def make_stats(res):

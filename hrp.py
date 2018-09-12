@@ -11,11 +11,13 @@ import sklearn
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 
 from bt import Algo
+from bt.algos import Rebalance
 from matplotlib import pyplot as plt
 
 from scipy.sparse import csr_matrix
 # from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
+from copy import deepcopy
 
 
 #hrp
@@ -123,13 +125,13 @@ def get_weights(closes, robust):
     corr = ((corr - corr.min()) / corr.max()).round(2)
     mst = nx.minimum_spanning_tree(nx.from_pandas_adjacency(corr))
 
-    fs = np.min((20, len(weights)))
-    plt.figure(figsize=(fs, fs), dpi=80)
-    plt.legend(title='Assets', loc=7)
-    nx.draw(mst, with_labels=True, node_size=widxed * 10000, node_color="skyblue",
-            node_shape="o",
-            alpha=0.75, linewidths=4)
-    plt.savefig('mst.png')
+    # fs = np.min((20, len(weights)))
+    # plt.figure(figsize=(fs, fs), dpi=80)
+    # plt.legend(title='Assets', loc=7)
+    # nx.draw(mst, with_labels=True, node_size=widxed * 10000, node_color="skyblue",
+    #         node_shape="o",
+    #         alpha=0.75, linewidths=4)
+    # plt.savefig('mst.png')
 
     return weights
 
@@ -138,16 +140,18 @@ def get_weights(closes, robust):
 
 def adjust_weights(weights, free, other, gap, round):
 
+    a = weights.copy()
     weights = weights.copy()
 
     n = 1
     while np.round(free / n, round) > gap:
         n += 1
-    n = np.max((n - 1, 1))
+    n = np.min((np.max((n - 1, 1)), len(weights)))
 
     wta = np.round(free / n, round)
 
-    for vix in weights.sort_values().index[:n]:
+    idx = weights.sort_values().index[:n] if free > 0 else weights.sort_values().index[-n:]
+    for vix in idx:
         weights.loc[vix] += wta
 
     weights = weights.round(round)
@@ -258,11 +262,53 @@ class GapWeights(object):
         mw[wgi] = ow[wgi]
 
         if mw.sum().round(self.wround) != 1.0:
-            weights = mw[mw != ow]
-            weights = adjust_weights(weights, np.round(mw.sum().round(self.wround), self.wround), mw.loc[wgi].sum(), self.gap, self.wround)
+            weights = mw[mw != ow[mw.index]]
+            if len(weights) == 0:
+                weights = mw
+            other = mw.loc[[i for i in mw.index if i not in weights.index]]
+            weights = adjust_weights(weights, np.round(1 - mw.sum().round(self.wround), self.wround),
+                                     np.round(other.sum(), self.wround),
+                                     self.gap, self.wround)
             mw[weights.index] = weights
+
+            if np.round(weights.sum(), 0) != 1.0:
+                weights[weights.idxmax()] += np.round(1 - weights.sum(), self.wround)
 
             target.temp['weights'] = mw.copy().to_dict()
             target.perm['weights'] = mw.copy().to_dict()
+
+        return True
+
+
+class CheckFeeBankrupt(Algo):
+
+    def __init__(self, fee_func):
+        super().__init__()
+
+        self._fee_func = fee_func
+
+    def __call__(self, target):
+
+        selected = target.temp.get('selected')
+        weights = target.temp.get('weights')
+
+        if selected is not None and weights is not None:
+
+            strat = deepcopy(target)
+            Rebalance()(strat)
+            if np.any(strat.positions < 0):
+                target.bankrupt = True
+                target.temp.pop('weights', None)
+
+            # weights = pd.Series(weights)
+            # prices = target.universe[selected].loc[target.now].copy()
+            #
+            # fee = 0.0
+            # for w, p in pd.concat((weights, prices[weights.index]), axis=1).values:
+            #     fee += self._fee_func(target.value * np.abs(w) / p, p)
+            #
+            # target.bankrupt = np.round(fee / target.value, 2) >= .4 or target.value < 0
+            # if target.bankrupt:
+            #     target.temp.pop('weights', None)
 
         return True

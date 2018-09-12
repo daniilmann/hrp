@@ -169,7 +169,7 @@ class Ui_mainWindow(object):
         self.moneyBox.setMinimumSize(QtCore.QSize(0, 25))
         self.moneyBox.setMinimum(0)
         self.moneyBox.setMaximum(999999999)
-        self.moneyBox.setProperty("value", 1000000)
+        self.moneyBox.setProperty("value", 10000000)
         self.moneyBox.setObjectName("moneyBox")
         self.strategyLayout.addWidget(self.moneyBox)
         self.feeLayout = QtWidgets.QHBoxLayout()
