@@ -17,6 +17,10 @@ from matplotlib import pyplot as plt
 import networkx as nx
 from copy import deepcopy
 from os.path import join
+import sys
+import traceback
+import matplotlib.patches as mpatches
+import matplotlib.lines as mlines
 
 #hrp
 
@@ -120,36 +124,79 @@ def get_weights(closes, robust, cats, graph_path):
         if cats is not None:
             ccats = cats[corr.columns].copy()
 
-        widxed = weights.loc[corr.index].values
+        widxed = weights.loc[corr.index]
         names = [s.replace(' ', '\n') for s in corr.columns]
         corr.index = names
         corr.columns = names
         corr = ((corr - corr.min()) / corr.max()).round(2)
-        mst = nx.minimum_spanning_tree(nx.from_pandas_adjacency(corr))
+        mst = nx.minimum_spanning_tree(nx.from_pandas_adjacency(corr, create_using=nx.MultiGraph()))
 
+        legends = None
         if cats is not None:
             ccats.columns = names
             ccats = ccats.T
-            colors = ccats[['Colors']]
-            colors = colors.reindex(mst.nodes()).Colors.tolist()
-            shapes = ccats[['Shapes']]
-            shapes = shapes.reindex(mst.nodes()).Shapes.tolist()
         else:
-            colors = 'b'
-            shapes = 'o'
+            ccats = pd.DataFrame({
+                'Colors': list('b' * len(names)),
+                'Shapes': list('o' * len(names))
+            }, index=names)
 
-        # todo legend and shapes
+        ccats['Sizes'] = pd.DataFrame({i.replace(' ', '\n'): w for i, w in zip(weights.index, weights)}, index=['Sizes']).T
         fs = np.min((20, len(weights)))
-        plt.figure(figsize=(fs, fs), dpi=80)
-        plt.legend(title='Assets', loc=7)
-        nx.draw(mst, with_labels=True, node_size=widxed * 10000, node_color=colors,
-                node_shape=shapes,
-                alpha=0.75, linewidths=4)
-        plt.savefig(join(graph_path, str(closes.index[-1].date()) + '.png'))
-    except:
+        fig = plt.figure(figsize=(fs + 5, fs + 2), dpi=80)
+        cf = fig.add_subplot(111)
+        draw_net(mst, ccats, cf)
+
+        if cats is not None:
+            leg = []
+            sdict = dict()
+            adict = dict()
+            for row in ccats.iterrows():
+                row = row[1]
+                sdict[row.Strategy] = row.Colors
+                adict[row.Asset] = row.Shapes
+            for k, v in sdict.items():
+                leg.append(mpatches.Patch(color=v, label=k))
+            leg1 = fig.legend(handles=leg, title='Strategy', loc=7, fontsize='xx-large')
+            # leg = []
+            # for k, v in adict.items():
+            #     leg.append(mlines.Line2D([], [], color='black', marker=v, linestyle='None',
+            #               markersize=10, label=k))
+            # leg2 = fig.legend(handles=leg, title='Asset', loc=1)
+
+        fig.savefig(join(graph_path, str(closes.index[-1].date()) + '.png'))
+    except Exception as e:
         pass
 
     return weights
+
+
+def draw_net(G, ccats, cf):
+
+    try:
+        p = cf.get_position().get_points()
+        x0, y0 = p[0]
+        x1, y1 = p[1]
+        cf.set_position([x0 / 2, y0 / 2, x1 - x0, y1 - y0])
+        cf.set_facecolor('w')
+
+        pos = nx.drawing.spring_layout(G)  # default to spring layout
+
+        for key in nx.drawing.spring_layout(G).keys():
+            shape = ccats.loc[key]['Shapes']
+            nx.draw_networkx_nodes(G, pos,
+                                   alpha=0.75,
+                                   linewidths=4,
+                                   node_shape=shape,
+                                   node_size=ccats.loc[key]['Sizes'] * 10000,
+                                   node_color=ccats.loc[key]['Colors'],
+                                   nodelist=[key])
+        nx.draw_networkx_edges(G, pos, arrows=False, edge_color='grey', width=3.0)
+        nx.draw_networkx_labels(G, pos)
+        cf.set_axis_off()
+    except Exception as e:
+        traceback.print_tb(sys.exc_info()[2])
+
 
 #hrp
 
