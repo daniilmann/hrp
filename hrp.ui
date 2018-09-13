@@ -460,11 +460,20 @@
            </layout>
           </item>
           <item>
-           <layout class="QVBoxLayout" name="covLayout">
+           <layout class="QVBoxLayout" name="paramsLayout">
             <item>
-             <widget class="QLabel" name="covLabel">
+             <widget class="QCheckBox" name="integerCheckBox">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>25</height>
+               </size>
+              </property>
               <property name="text">
-               <string>Covariance matrix</string>
+               <string>Integer position</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
@@ -477,7 +486,7 @@
                </size>
               </property>
               <property name="text">
-               <string>OAS (robust)</string>
+               <string>OAS (robust cov matrix)</string>
               </property>
              </widget>
             </item>

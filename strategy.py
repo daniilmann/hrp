@@ -29,6 +29,7 @@ class TestStrategy(object):
         self.reb_gap = 0.0
         self.weight_round = 0
         self.robust = False
+        self.int_pos = True
 
         self.est_plen = 0
         self.est_ptype = 'n'
@@ -81,7 +82,7 @@ class TestStrategy(object):
         return hsh
 
 
-    def bt_strategy(self, data):
+    def bt_strategy(self, data, cats, graph_path):
 
         rsmpl = {
             'days': 'B',
@@ -116,14 +117,14 @@ class TestStrategy(object):
             algos.RunOnDate(*run_dates.index.tolist()),
             algos.SelectAll(),
             SaveWeights(),
-            WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust),
+            WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust, cats=cats, graph_path=graph_path),
             GapWeights(self.reb_gap),
             CheckFeeBankrupt(fee_func_parial),
             algos.Rebalance()
         ])
 
         return bt.Backtest(strategy, data.copy(), initial_capital=self.init_balance,
-                           commissions=fee_func_parial, integer_positions=False)
+                           commissions=fee_func_parial, integer_positions=self.int_pos, progress_bar=True)
 
 
 def make_stats(res):

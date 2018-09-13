@@ -14,11 +14,9 @@ from bt import Algo
 from bt.algos import Rebalance
 from matplotlib import pyplot as plt
 
-from scipy.sparse import csr_matrix
-# from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
 from copy import deepcopy
-
+from os.path import join
 
 #hrp
 
@@ -97,7 +95,7 @@ def cov_robust(X):
     return pd.DataFrame(oas.covariance_, index=X.columns, columns=X.columns)
 
 
-def get_weights(closes, robust):
+def get_weights(closes, robust, cats, graph_path):
     ret = np.log(closes / closes.shift()).fillna(0.0)
     corr = cov2cor(ret.cov() if robust else cov_robust(ret))
     dist = distance(corr)
@@ -118,20 +116,38 @@ def get_weights(closes, robust):
     weights = getRecBipart(ret.cov(), clusters)
     weights.index = closes.columns[weights.index]
 
-    widxed = weights.loc[corr.index].values
-    names = [s.replace(' ', '\n') for s in corr.columns]
-    corr.index = names
-    corr.columns = names
-    corr = ((corr - corr.min()) / corr.max()).round(2)
-    mst = nx.minimum_spanning_tree(nx.from_pandas_adjacency(corr))
+    try:
+        if cats is not None:
+            ccats = cats[corr.columns].copy()
 
-    # fs = np.min((20, len(weights)))
-    # plt.figure(figsize=(fs, fs), dpi=80)
-    # plt.legend(title='Assets', loc=7)
-    # nx.draw(mst, with_labels=True, node_size=widxed * 10000, node_color="skyblue",
-    #         node_shape="o",
-    #         alpha=0.75, linewidths=4)
-    # plt.savefig('mst.png')
+        widxed = weights.loc[corr.index].values
+        names = [s.replace(' ', '\n') for s in corr.columns]
+        corr.index = names
+        corr.columns = names
+        corr = ((corr - corr.min()) / corr.max()).round(2)
+        mst = nx.minimum_spanning_tree(nx.from_pandas_adjacency(corr))
+
+        if cats is not None:
+            ccats.columns = names
+            ccats = ccats.T
+            colors = ccats[['Colors']]
+            colors = colors.reindex(mst.nodes()).Colors.tolist()
+            shapes = ccats[['Shapes']]
+            shapes = shapes.reindex(mst.nodes()).Shapes.tolist()
+        else:
+            colors = 'b'
+            shapes = 'o'
+
+        # todo legend and shapes
+        fs = np.min((20, len(weights)))
+        plt.figure(figsize=(fs, fs), dpi=80)
+        plt.legend(title='Assets', loc=7)
+        nx.draw(mst, with_labels=True, node_size=widxed * 10000, node_color=colors,
+                node_shape=shapes,
+                alpha=0.75, linewidths=4)
+        plt.savefig(join(graph_path, str(closes.index[-1].date()) + '.png'))
+    except:
+        pass
 
     return weights
 
@@ -169,13 +185,15 @@ def adjust_weights(weights, free, other, gap, round):
 
 class WeightHRP(Algo):
 
-    def __init__(self, plen, ptype, robust=False, weight_round=2):
+    def __init__(self, plen, ptype, robust=False, weight_round=2, cats=None, graph_path=None):
         super().__init__()
 
         self._robust = robust
         self._weight_round = weight_round
         self._plen = plen
         self._ptype = ptype
+        self._cats = cats.copy()
+        self._grap_path = graph_path
 
     def __call__(self, target):
         selected = target.temp['selected']
@@ -193,7 +211,7 @@ class WeightHRP(Algo):
             idx = index[index.year == idx.year][-1]
 
         prices = target.universe[selected].loc[idx: target.now].copy()
-        weights = get_weights(prices, self.robust).round(self.wround)
+        weights = get_weights(prices, self.robust, self._cats, self._grap_path).round(self.wround)
         if weights.sum().round(2) != 1.0:
             weights = adjust_weights(weights, np.round(1 - weights.sum(), self.wround), 0, 0, self.wround)
         target.temp['weights'] = weights.to_dict()
@@ -312,3 +330,4 @@ class CheckFeeBankrupt(Algo):
             #     target.temp.pop('weights', None)
 
         return True
+

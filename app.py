@@ -10,10 +10,12 @@ from ffn import fmtp
 import pandas as pd
 import numpy as np
 import re
+import shutil
 from os import makedirs
 from os.path import dirname, exists, join
 import sys
 import traceback
+from matplotlib import colors
 
 
 class ERPeriod(object):
@@ -104,6 +106,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 4)
         strategy.weight_round = int(self.decimalSpin.value() + 2)
         strategy.robust = self.covCheckBox.isChecked()
+        strategy.int_pos = self.integerCheckBox.isChecked()
         strategy.est_plen = self.estPeriodSpin.value()
         strategy.est_ptype = self.estTypeCombo.currentText()
         strategy.roll_plen = self.rollPeriodSpin.value()
@@ -126,6 +129,25 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
             data = None
             if self.dataFileEdit.text():
 
+                try:
+                    cats = pd.read_excel(self.dataFileEdit.text(), sheet_name=1)
+
+                    sc = np.unique(cats.loc['Strategy'])
+                    if len(sc) <= len(colors.BASE_COLORS):
+                        scc = list(colors.BASE_COLORS.keys())[:len(sc)]
+                    else:
+                        scc = list(colors.CSS4_COLORS.keys())[:len(sc)]
+                    scd = {s: c for s, c in zip(sc, scc)}
+                    cats.loc['Colors'] = pd.Series({i: scd[cats.loc['Strategy'][i]] for i in cats.loc['Strategy'].index})
+
+                    am = np.unique(cats.loc['Asset'])
+                    ams = list('so^>v<dph8')[:len(am)]
+                    amd = {a: s for a, s in zip(am, ams)}
+                    cats.loc['Shapes'] = pd.Series(
+                        {i: amd[cats.loc['Asset'][i]] for i in cats.loc['Asset'].index})
+                except:
+                    cats = None
+
                 date_column = self.dateColumnEdit.text() if self.dateColumnEdit.text() else 'Date'
                 date_format = self.dateFormatEdit.text() if self.dateFormatEdit.text() else '%Y-%m-%d'
 
@@ -145,30 +167,36 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     data = data.loc[idxs]
 
             if len(self._strategies) and data is not None:
-                    backtests = [s.bt_strategy(data) for s in self._strategies]
-                    res = bt.run(*backtests)
-                    stats = make_stats(res)
-                    bdf = {b.name: pd.concat((b.strategy.data, b.weights, b.positions, b.turnover), axis=1) for b in backtests}
-                    pattern = re.compile('.*>')
-                    columns = backtests[0].strategy.data.columns.tolist()
-                    columns.extend(['W_' + pattern.sub('', c) for c in backtests[0].weights.columns])
-                    columns.extend(['POS_' + pattern.sub('', c) for c in backtests[0].positions.columns])
-                    columns.append('Turnover')
+                out_dir = self.reportFileEdit.text() if self.reportFileEdit.text() else dirname(__file__)
+                if not exists(out_dir):
+                    makedirs(out_dir)
 
-                    out_dir = self.reportFileEdit.text() if self.reportFileEdit.text() else dirname(__file__)
-                    if not exists(out_dir):
-                        makedirs(out_dir)
+                backtests = []
+                for s in self._strategies:
+                    graph_dir = join(out_dir, s.name())
+                    if exists(graph_dir):
+                        shutil.rmtree(graph_dir)
+                    makedirs(graph_dir)
+                    backtests.append(s.bt_strategy(data, cats, graph_dir))
+                res = bt.run(*backtests)
+                stats = make_stats(res)
+                bdf = {b.name: pd.concat((b.strategy.data, b.weights, b.positions, b.turnover), axis=1) for b in backtests}
+                pattern = re.compile('.*>')
+                columns = backtests[0].strategy.data.columns.tolist()
+                columns.extend(['W_' + pattern.sub('', c) for c in backtests[0].weights.columns])
+                columns.extend(['POS_' + pattern.sub('', c) for c in backtests[0].positions.columns])
+                columns.append('Turnover')
 
-                    writer = pd.ExcelWriter(join(out_dir, 'hrp_results.xlsx'))
-                    stats.to_excel(writer, 'Stats')
-                    res.prices.to_excel(writer, 'Prices')
-                    res.lookback_returns.applymap(fmtp).to_excel(writer, 'Lookback')
-                    for name, df in bdf.items():
-                        df.columns = columns
-                        df.to_excel(writer, name)
+                writer = pd.ExcelWriter(join(out_dir, 'hrp_results.xlsx'))
+                stats.to_excel(writer, 'Stats')
+                res.prices.to_excel(writer, 'Prices')
+                res.lookback_returns.applymap(fmtp).to_excel(writer, 'Lookback')
+                for name, df in bdf.items():
+                    df.columns = columns
+                    df.to_excel(writer, name)
 
-                    writer.save()
-                    qtw.QMessageBox.information(self, "I'm ready", "I'm ready")
+                writer.save()
+                qtw.QMessageBox.information(self, "I'm ready", "I'm ready")
             else:
                 qtw.QMessageBox.critical(self, "No strategies", "Add strategies")
         except:
