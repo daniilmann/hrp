@@ -8,7 +8,7 @@ import pandas as pd
 
 import bt
 from bt import algos
-from ffn import fmtp, fmtn
+from ffn import fmtp, fmtn, asfreq_actual
 from hrp import WeightHRP, SaveWeights, GapWeights, CheckFeeBankrupt
 
 
@@ -92,7 +92,8 @@ class TestStrategy(object):
         }[self.roll_ptype]
 
         first_date = data.index[0] + relativedelta(**{self.est_ptype: self.est_plen})
-        run_dates = data.resample(rsmpl).last()
+        run_dates = asfreq_actual(data[data.columns[0]], str(self.roll_plen) + rsmpl)
+        run_dates = data.loc[run_dates.index]
         run_dates = run_dates.loc[run_dates.index > first_date]
         run_dates = run_dates.iloc[:-1]
         run_dates.loc[data.index[-1]] = data.iloc[-1]

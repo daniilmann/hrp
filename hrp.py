@@ -165,6 +165,7 @@ def get_weights(closes, robust, cats, graph_path):
             # leg2 = fig.legend(handles=leg, title='Asset', loc=1)
 
         fig.savefig(join(graph_path, str(closes.index[-1].date()) + '.png'))
+        plt.close('all')
     except Exception as e:
         pass
 
