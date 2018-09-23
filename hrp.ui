@@ -460,6 +460,27 @@
            </layout>
           </item>
           <item>
+           <layout class="QVBoxLayout" name="rateLayout">
+            <item>
+             <widget class="QLabel" name="rateLabel">
+              <property name="text">
+               <string>Risk free rate</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="rateSpin">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>25</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QVBoxLayout" name="paramsLayout">
             <item>
              <widget class="QCheckBox" name="integerCheckBox">
