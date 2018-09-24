@@ -1116,6 +1116,7 @@ class SecurityBase(Node):
                 last_q = q
 
                 if np.abs(full_outlay - amount) > np.abs(last_amount_short):
+                    break
                     raise Exception(
                         'The difference between what we have raised with q and'
                         ' the amount we are trying to raise has gotten bigger since'
