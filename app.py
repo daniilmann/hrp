@@ -153,6 +153,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
 
                 data = pd.read_excel(self.dataFileEdit.text())
                 data = data.set_index(pd.DatetimeIndex(pd.to_datetime(data[date_column], format=date_format)))
+                data = data.sort_index()
                 data = data.drop(date_column, axis=1)
 
                 data = data.sort_index()
