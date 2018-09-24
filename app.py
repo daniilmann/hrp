@@ -5,7 +5,7 @@ import design
 
 from strategy import TestStrategy, make_stats
 import bt
-from ffn import fmtp
+from ffn import fmtp, PerformanceStats
 
 import pandas as pd
 import numpy as np
@@ -103,8 +103,9 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy.init_balance = self.initial_balance
         strategy.fix_fee = self.fix_fee
         strategy.prc_fee = self.prc_fee
-        strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 4)
+        strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 6)
         strategy.weight_round = int(self.decimalSpin.value() + 2)
+        strategy.risk_free = np.round(self.rateSpin.value() / 100, 6)
         strategy.robust = self.covCheckBox.isChecked()
         strategy.int_pos = self.integerCheckBox.isChecked()
         strategy.est_plen = self.estPeriodSpin.value()
@@ -173,14 +174,19 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     makedirs(out_dir)
 
                 backtests = []
+                rfs = dict()
                 for s in self._strategies:
                     graph_dir = join(out_dir, s.name())
                     if exists(graph_dir):
                         shutil.rmtree(graph_dir)
                     makedirs(graph_dir)
                     backtests.append(s.bt_strategy(data, cats, graph_dir))
+                    rfs[s.name()] = s.risk_free
                 res = bt.run(*backtests)
-                stats = make_stats(res)
+                perfs = dict()
+                for k, v in rfs.items():
+                    perfs[k] = PerformanceStats(res.backtests[k].strategy.prices, float(v))
+                stats = make_stats(perfs)
                 bdf = {b.name: pd.concat((b.strategy.data, b.weights, b.positions, b.turnover), axis=1) for b in backtests}
                 pattern = re.compile('.*>')
                 columns = backtests[0].strategy.data.columns.tolist()

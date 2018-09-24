@@ -25,12 +25,15 @@ import matplotlib.lines as mlines
 #hrp
 
 def cov2cor(X):
-    D = np.zeros_like(X)
-    d = np.sqrt(np.diag(X))
-    np.fill_diagonal(D, d)
-    DInv = np.linalg.inv(D)
-    R = np.dot(np.dot(DInv, X), DInv)
-    return pd.DataFrame(R, index=X.index, columns=X.columns)
+    try:
+        D = np.zeros_like(X)
+        d = np.sqrt(np.diag(X))
+        np.fill_diagonal(D, d)
+        DInv = np.linalg.inv(D)
+        R = np.dot(np.dot(DInv, X), DInv)
+        return pd.DataFrame(R, index=X.index, columns=X.columns)
+    except Exception as e:
+        traceback.print_tb(sys.exc_info()[2])
 
 
 def distance(corr):

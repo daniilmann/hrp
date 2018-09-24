@@ -26,6 +26,8 @@ class TestStrategy(object):
         self.prc_fee = 0.0
         self.fix_fee = 0.0
 
+        self.risk_free = 0.0
+
         self.reb_gap = 0.0
         self.weight_round = 0
         self.robust = False
@@ -38,19 +40,21 @@ class TestStrategy(object):
         self.roll_ptype = 'n'
 
     def __str__(self) -> str:
-        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Gap {:.4f} | Cov {:6} | Balance {:.2f}'.format(
+        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Rate {:.6f} | Gap {:.4f} | Cov {:6} | Balance {:.2f}'.format(
             self.est_plen, self.est_ptype,
             self.roll_plen, self.roll_ptype,
             self.fix_fee, self.prc_fee,
+            self.risk_free,
             self.reb_gap, 'OAS' if self.robust else 'Simple',
             self.init_balance)
         # return 'Estimation {} {} | Roll {} {}'.format(self.est_plen, self.est_ptype, self.roll_plen, self.roll_ptype)
 
     def name(self):
-        return 'e{}{}r{}{}ff{}pf{}g{}c{}b{}'.format(
+        return 'e{}{}r{}{}ff{}pf{}r{}g{}c{}b{}'.format(
             self.est_plen, self.est_ptype[0],
             self.roll_plen, self.roll_ptype[0],
             self.fix_fee, self.prc_fee,
+            self.risk_free,
             self.reb_gap, 'R' if self.robust else 'S',
             int(self.init_balance))
 
@@ -129,7 +133,8 @@ class TestStrategy(object):
 
 
 def make_stats(res):
-    names = res.backtests.keys()
+    names = list(res.keys())
+    values = list(res.values())
 
     stats = [('start', 'Start', 'dt'),
              ('end', 'End', 'dt'),
@@ -195,7 +200,7 @@ def make_stats(res):
             data.loc[str(len(data))] = empty
             continue
 
-        raw = res.stats.loc[k]
+        raw = pd.Series(map(lambda v: v.__getattribute__(k), values), index=names)
         if f is None:
             raw = empty
         elif f == 'p':
