@@ -221,7 +221,10 @@ def adjust_weights(weights, free, other, gap, round):
     weights = weights.round(round)
 
     if np.round(weights.sum() + other, 0) != 1:
-        weights.loc[weights.idxmin()] += 1 - np.round(weights.sum() + other, round)
+        try:
+            weights.loc[weights.idxmin()] += 1 - np.round(weights.sum() + other, round)
+        except Exception as e:
+            traceback.print_tb(sys.exc_info()[2])
 
         weights = weights.round(round)
 
@@ -251,12 +254,7 @@ class WeightHRP(Algo):
         # plen, ptype = int(match.group(1)), match.group(2)
 
         idx = target.now - relativedelta(**{self.ptype: self.plen})
-        if self.ptype == 'weeks':
-            idx = index[(index.year == idx.year) & (index.week == idx.week)][-1]
-        elif self.ptype == 'months':
-            idx = index[(index.year == idx.year) & (index.month == idx.month)][-1]
-        elif self.ptype == 'years':
-            idx = index[index.year == idx.year][-1]
+        idx = index[np.abs(index - idx).argmin()]
 
         prices = target.universe[selected].loc[idx: target.now].copy()
         weights = get_weights(prices, self.robust, self._cats, self._grap_path).round(self.wround)
