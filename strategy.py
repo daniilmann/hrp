@@ -9,7 +9,7 @@ import pandas as pd
 import bt
 from bt import algos
 from ffn import fmtp, fmtn, asfreq_actual
-from hrp import WeightHRP, SaveWeights, GapWeights, CheckFeeBankrupt
+from hrp import WeightHRP, SaveWeights, GapWeights, CheckFeeBankrupt, WeightAdjust, WeightsToPerm, WeightTargetVol
 
 
 def fee_func(q, p, ff, pf):
@@ -27,6 +27,10 @@ class TestStrategy(object):
         self.fix_fee = 0.0
 
         self.risk_free = 0.0
+
+        self.leverage = 1.0
+        self.is_tvol = False
+        self.tvol = 0.0
 
         self.reb_gap = 0.0
         self.weight_round = 0
@@ -102,31 +106,27 @@ class TestStrategy(object):
         run_dates = run_dates.iloc[:-1]
         run_dates.loc[data.index[-1]] = data.iloc[-1]
 
-        # algo_stack = [
-        #     algos.RunOnDate(*run_dates.index.tolist()),
-        #     algos.SelectAll()
-        # ]
-        # if self.reb_gap != 0.0:
-        #     algo_stack.extend([
-        #         SaveWeights(),
-        #         WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust),
-        #         GapWeights(self.reb_gap)
-        #     ])
-        # else:
-        #     algo_stack.append(WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust))
-        # algo_stack.append(algos.Rebalance())
-
         fee_func_parial = partial(fee_func, ff=self.fix_fee, pf=self.prc_fee)
 
-        strategy = bt.Strategy(self.name(), [
+        algo_stack = [
             algos.RunOnDate(*run_dates.index.tolist()),
             algos.SelectAll(),
             SaveWeights(),
             WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust, cats=cats, graph_path=graph_path),
             GapWeights(self.reb_gap),
+        ]
+
+        if self.is_tvol:
+            algo_stack.append(WeightTargetVol(self.tvol, plen=self.est_plen, ptype=self.est_ptype))
+
+        algo_stack.extend([
+            WeightAdjust(self.leverage, self.weight_round),
+            WeightsToPerm(),
             CheckFeeBankrupt(fee_func_parial),
             algos.Rebalance()
         ])
+
+        strategy = bt.Strategy(self.name(), algo_stack)
 
         return bt.Backtest(strategy, data.copy(), initial_capital=self.init_balance,
                            commissions=fee_func_parial, integer_positions=self.int_pos, progress_bar=True)

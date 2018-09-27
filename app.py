@@ -16,6 +16,7 @@ from os.path import dirname, exists, join
 import sys
 import traceback
 from matplotlib import colors
+from dateutil.relativedelta import relativedelta
 
 
 class ERPeriod(object):
@@ -58,6 +59,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         self.addStrategyBtn.clicked.connect(self.add_strategy)
         self.removeStrategyBtn.clicked.connect(self.remove_strategy)
         self.reportFileBtn.clicked.connect(self.select_report_dir)
+        self.tvolCheck.stateChanged.connect(lambda: self.tvolSpin.setEnabled(self.tvolCheck.checkState()))
 
         self.runTestButton.clicked.connect(self.run_test)
 
@@ -101,10 +103,13 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy = TestStrategy()
 
         strategy.init_balance = self.initial_balance
+        strategy.leverage = self.leverageSpin.value()
+        strategy.is_tvol = self.tvolCheck.isChecked()
+        strategy.tvol = np.round(self.tvolSpin.value() / 100, 6)
         strategy.fix_fee = self.fix_fee
         strategy.prc_fee = self.prc_fee
         strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 6)
-        strategy.weight_round = int(self.decimalSpin.value() + 2)
+        strategy.weight_round = int(self.decimalSpin.value())
         strategy.risk_free = np.round(self.rateSpin.value() / 100, 6)
         strategy.robust = self.covCheckBox.isChecked()
         strategy.int_pos = self.integerCheckBox.isChecked()
@@ -184,8 +189,11 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     rfs[s.name()] = s.risk_free
                 res = bt.run(*backtests)
                 perfs = dict()
-                for k, v in rfs.items():
-                    perfs[k] = PerformanceStats(res.backtests[k].strategy.prices, float(v))
+                for s in self._strategies:
+                    k, v = s.name(), rfs[s.name()]
+                    fdate = data.index[0] + relativedelta(**{s.est_ptype: s.est_plen})
+                    prices = res.backtests[k].strategy.prices
+                    perfs[k] = PerformanceStats(prices.loc[prices.index >= fdate], float(v))
                 stats = make_stats(perfs)
                 bdf = {b.name: pd.concat((b.strategy.data, b.weights, b.positions, b.turnover), axis=1) for b in backtests}
                 pattern = re.compile('.*>')

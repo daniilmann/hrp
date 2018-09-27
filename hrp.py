@@ -205,48 +205,56 @@ def draw_net(G, ccats, cf):
 #hrp
 
 
-def adjust_weights(weights, free, other, gap, round):
+class WeightAdjust(Algo):
 
-    a = weights.copy()
-    weights = weights.copy()
+    def __init__(self, leverage=1.0, weight_round=2):
+        super().__init__()
+        self._leverage = leverage
+        self._weight_round = weight_round
 
-    n = 1
-    while np.round(free / n, round) > gap:
-        n += 1
-    n = np.min((np.max((n - 1, 1)), len(weights)))
+    def __call__(self, target):
 
-    wta = np.round(free / n, round)
+        if 'weights' not in target.temp.keys():
+            return True
 
-    idx = weights.sort_values().index[:n] if free > 0 else weights.sort_values().index[-n:]
-    for vix in idx:
-        weights.loc[vix] += wta
+        weights = pd.Series(target.temp['weights']).round(self.wround)
+        if weights.sum().round(self.wround) > self.leverage:
+            weights = ((weights.sum() / self.leverage) * weights).round(self.wround)
 
-    weights = weights.round(round)
+            if weights.sum().round(self.wround) > self.leverage:
+                weights[weights.idxmax()] += np.round(self.leverage - weights.sum(), self.wround)
 
-    if np.round(weights.sum() + other, 0) != 1:
-        try:
-            weights.loc[weights.idxmin()] += 1 - np.round(weights.sum() + other, round)
-        except Exception as e:
-            traceback.print_tb(sys.exc_info()[2])
+        target.temp['weights'] = weights.to_dict()
 
-        weights = weights.round(round)
+        return True
 
-        if np.round(weights.sum() + other, 0) != 1:
-            return adjust_weights(weights, np.round(1 - weights.sum() - other, round), other, gap, round)
+    @property
+    def leverage(self):
+        return self._leverage
 
-    return weights
+    @property
+    def wround(self):
+        return self._weight_round
+
+
+class WeightsToPerm(Algo):
+
+    def __call__(self, target):
+        if 'weights' in target.temp.keys():
+            target.perm['weights'] = target.temp['weights'].copy()
+
+        return True
 
 
 class WeightHRP(Algo):
 
-    def __init__(self, plen, ptype, robust=False, weight_round=2, cats=None, graph_path=None):
+    def __init__(self, plen, ptype, robust=False, cats=None, graph_path=None):
         super().__init__()
 
         self._robust = robust
-        self._weight_round = weight_round
         self._plen = plen
         self._ptype = ptype
-        self._cats = cats.copy()
+        self._cats = cats.copy()# if cats is not None else None
         self._grap_path = graph_path
 
     def __call__(self, target):
@@ -260,11 +268,9 @@ class WeightHRP(Algo):
         idx = index[np.abs(index - idx).argmin()]
 
         prices = target.universe[selected].loc[idx: target.now].copy()
-        weights = get_weights(prices, self.robust, self._cats, self._grap_path).round(self.wround)
-        if weights.sum().round(2) != 1.0:
-            weights = adjust_weights(weights, np.round(1 - weights.sum(), self.wround), 0, 0, self.wround)
+        weights = get_weights(prices, self.robust, self._cats, self._grap_path)
+
         target.temp['weights'] = weights.to_dict()
-        target.perm['weights'] = weights.to_dict()
 
         return True
 
@@ -280,9 +286,6 @@ class WeightHRP(Algo):
     def ptype(self):
         return self._ptype
 
-    @property
-    def wround(self):
-        return self._weight_round
 
 class SaveWeights(Algo):
 
@@ -333,18 +336,48 @@ class GapWeights(object):
             if len(weights) == 0:
                 weights = mw
             other = mw.loc[[i for i in mw.index if i not in weights.index]]
-            weights = adjust_weights(weights, np.round(1 - mw.sum().round(self.wround), self.wround),
+            weights = self._adjust_weights(weights, np.round(1 - mw.sum().round(self.wround), self.wround),
                                      np.round(other.sum(), self.wround),
                                      self.gap, self.wround)
             mw[weights.index] = weights
 
-            if np.round(weights.sum(), 0) != 1.0:
-                weights[weights.idxmax()] += np.round(1 - weights.sum(), self.wround)
+            if np.round(mw.sum(), 0) != 1.0:
+                mw[mw.idxmax()] += np.round(1 - mw.sum(), self.wround)
 
-            target.temp['weights'] = mw.copy().to_dict()
-            target.perm['weights'] = mw.copy().to_dict()
+        target.temp['weights'] = mw.copy().to_dict()
 
         return True
+
+    def _adjust_weights(self, weights, free, other, gap, wround):
+
+        a = weights.copy()
+        weights = weights.copy()
+
+        n = 1
+        while np.round(free / n, wround) > gap:
+            n += 1
+        n = np.min((np.max((n - 1, 1)), len(weights)))
+
+        wta = np.round(free / n, wround)
+
+        idx = weights.sort_values().index[:n] if free > 0 else weights.sort_values().index[-n:]
+        for vix in idx:
+            weights.loc[vix] += wta
+
+        weights = weights.round(wround)
+
+        if np.round(weights.sum() + other, 0) != 1:
+            try:
+                weights.loc[weights.idxmin()] += 1 - np.round(weights.sum() + other, wround)
+            except Exception as e:
+                traceback.print_tb(sys.exc_info()[2])
+
+            weights = weights.round(wround)
+
+            if np.round(weights.sum() + other, 0) != 1:
+                return adjust_weights(weights, np.round(1 - weights.sum() - other, wround), other, gap, wround)
+
+        return weights
 
 
 class CheckFeeBankrupt(Algo):
@@ -367,16 +400,50 @@ class CheckFeeBankrupt(Algo):
                 target.bankrupt = True
                 target.temp.pop('weights', None)
 
-            # weights = pd.Series(weights)
-            # prices = target.universe[selected].loc[target.now].copy()
-            #
-            # fee = 0.0
-            # for w, p in pd.concat((weights, prices[weights.index]), axis=1).values:
-            #     fee += self._fee_func(target.value * np.abs(w) / p, p)
-            #
-            # target.bankrupt = np.round(fee / target.value, 2) >= .4 or target.value < 0
-            # if target.bankrupt:
-            #     target.temp.pop('weights', None)
+        return True
+
+
+class WeightTargetVol(Algo):
+
+    def __init__(self, tvol, plen, ptype, kmax=1.0):
+        super().__init__()
+
+        self._tvol = tvol
+        self._plen = plen
+        self._ptype = ptype
+        self._kmax = kmax
+
+    def __call__(self, target):
+
+        if 'weights' not in target.temp.keys():
+            return True
+
+        index = target.universe.index
+
+        idx = target.now - relativedelta(**{self.ptype: self.plen})
+        idx = index[np.abs(index - idx).argmin()]
+
+        prices = target.universe[list(target.temp['weights'].keys())].loc[idx: target.now].copy()
+        weights = pd.Series(target.temp['weights'])
+        pvol = (prices.to_returns() * weights).sum(1).std()
+        k = np.min((self.tvol / pvol, self.kmax))
+
+        target.temp['weights'] = (weights * k).to_dict()
 
         return True
 
+    @property
+    def tvol(self):
+        return self._tvol
+
+    @property
+    def plen(self):
+        return self._plen
+
+    @property
+    def ptype(self):
+        return self._ptype
+
+    @property
+    def kmax(self):
+        return self._kmax
