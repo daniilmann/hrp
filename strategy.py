@@ -117,7 +117,7 @@ class TestStrategy(object):
         ]
 
         if self.is_tvol:
-            algo_stack.append(WeightTargetVol(self.tvol, plen=self.est_plen, ptype=self.est_ptype))
+            algo_stack.append(WeightTargetVol(self.tvol, plen=self.est_plen, ptype=self.est_ptype, kmax=self.leverage))
 
         algo_stack.extend([
             WeightAdjust(self.leverage, self.weight_round),

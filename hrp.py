@@ -219,7 +219,7 @@ class WeightAdjust(Algo):
 
         weights = pd.Series(target.temp['weights']).round(self.wround)
         if weights.sum().round(self.wround) > self.leverage:
-            weights = ((weights.sum() / self.leverage) * weights).round(self.wround)
+            weights = ((self.leverage / weights.sum()).round(self.wround) * weights).round(self.wround)
 
             if weights.sum().round(self.wround) > self.leverage:
                 weights[weights.idxmax()] += np.round(self.leverage - weights.sum(), self.wround)
@@ -425,7 +425,8 @@ class WeightTargetVol(Algo):
 
         prices = target.universe[list(target.temp['weights'].keys())].loc[idx: target.now].copy()
         weights = pd.Series(target.temp['weights'])
-        pvol = (prices.to_returns() * weights).sum(1).std()
+        amounts = weights * 1000000 / prices.iloc[0]
+        pvol = (prices * amounts).sum(1).to_returns().std() * np.sqrt(252)
         k = np.min((self.tvol / pvol, self.kmax))
 
         target.temp['weights'] = (weights * k).to_dict()
