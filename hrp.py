@@ -448,3 +448,80 @@ class WeightTargetVol(Algo):
     @property
     def kmax(self):
         return self._kmax
+
+
+def min_max_rebalance(weights, minw, maxw, diff):
+
+    nw = weights.copy()
+    diff = 0.0
+    if diff < 0:
+        nw = weights[weights > minw]
+        nw = nw - np.round(diff * nw, 6)
+        diff = nw[nw < minw] - minw
+        nw[nw < minw] = minw
+    elif diff > 0:
+        nw = weights[weights < maxw]
+        nw = nw + np.round(diff * nw, 6)
+        diff = nw[nw > maxw] - maxw
+        nw[nw > maxw] = maxw
+
+    if diff != 0:
+        nw = min_max_rebalance(nw, minw, maxw, diff)
+
+    return nw
+
+
+class LimitWeights(Algo):
+
+    """
+    Modifies temp['weights'] based on weight limits.
+
+    This is an Algo wrapper around ffn's limit_weights. The purpose of this
+    Algo is to limit the weight of any one specifc asset. For example, some
+    Algos will set some rather extreme weights that may not be acceptable.
+    Therefore, we can use this Algo to limit the extreme weights. The excess
+    weight is then redistributed to the other assets, proportionally to
+    their current weights.
+
+    See ffn's limit_weights for more information.
+
+    Args:
+        * limit (float): Weight limit.
+
+    Sets:
+        * weights
+
+    Requires:
+        * weights
+
+    """
+
+    def __init__(self, min_limit=0.0, max_limit=1.0):
+        super(LimitWeights, self).__init__()
+        self.min_limit = min_limit
+        self.max_limit = max_limit
+
+    def __call__(self, target):
+        if 'weights' not in target.temp:
+            return True
+
+        tw = target.temp['weights']
+        if len(tw) == 0:
+            return True
+
+        if isinstance(tw, dict):
+            tw = pd.Series(tw)
+
+        tws = tw.sum().round(6)
+
+        tw[tw < self.min_limit] = self.min_limit
+        tw[tw > self.max_limit] = self.max_limit
+
+        ntws = tw.sum().round(6)
+        diff = ntws - tws
+
+        tw = min_max_rebalance(tw, self.min_limit, self.max_limit, diff)
+
+        target.temp['weights'] = tw.to_dict()
+
+        return True

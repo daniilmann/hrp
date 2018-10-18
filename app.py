@@ -110,13 +110,19 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy.prc_fee = self.prc_fee
         strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 6)
         strategy.weight_round = int(self.decimalSpin.value())
-        strategy.risk_free = np.round(self.rateSpin.value() / 100, 6)
+        if self.rateFileEdit.text() and exists(self.rateFileEdit.text()):
+            strategy.risk_free = self.rateFileEdit.text()
+        else:
+            strategy.risk_free = np.round(self.rateSpin.value() / 100, 6)
         strategy.robust = self.covCheckBox.isChecked()
         strategy.int_pos = self.integerCheckBox.isChecked()
         strategy.est_plen = self.estPeriodSpin.value()
         strategy.est_ptype = self.estTypeCombo.currentText()
         strategy.roll_plen = self.rollPeriodSpin.value()
         strategy.roll_ptype = self.rollTypeCombo.currentText()
+
+        strategy.min_weight = np.round(self.minWeightSpin.value() / 100, strategy.weight_round)
+        strategy.max_weight = np.round(self.maxWeightSpin.value() / 100, strategy.weight_round)
 
         if strategy not in self._strategies:
             self._strategies.append(strategy)
@@ -193,7 +199,12 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     k, v = s.name(), rfs[s.name()]
                     fdate = data.index[0] + relativedelta(**{s.est_ptype: s.est_plen})
                     prices = res.backtests[k].strategy.prices
-                    perfs[k] = PerformanceStats(prices.loc[prices.index >= fdate], float(v))
+                    if isinstance(v, str):
+                        v = pd.read_csv(v)
+                        v = v[v.columns[0]]
+                    else:
+                        v = float(v)
+                    perfs[k] = PerformanceStats(prices.loc[prices.index >= fdate], v)
                 stats = make_stats(perfs)
                 bdf = {b.name: pd.concat((b.strategy.data, b.weights, b.positions, b.turnover), axis=1) for b in backtests}
                 pattern = re.compile('.*>')

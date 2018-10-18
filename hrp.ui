@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>1145</width>
-    <height>440</height>
+    <height>447</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -74,6 +74,18 @@
             </item>
             <item>
              <widget class="QToolButton" name="dataFileButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>95</width>
+                <height>30</height>
+               </size>
+              </property>
               <property name="text">
                <string>Open File</string>
               </property>
@@ -83,6 +95,45 @@
           </item>
           <item>
            <widget class="QLineEdit" name="dataFileEdit"/>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="rateFileLayout">
+            <property name="topMargin">
+             <number>5</number>
+            </property>
+            <property name="bottomMargin">
+             <number>5</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="rateFileLabel">
+              <property name="text">
+               <string>Risk Free File Path</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>95</width>
+                <height>30</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Open File</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="rateFileEdit"/>
           </item>
           <item>
            <layout class="QHBoxLayout" name="columnFormatLayout">
@@ -372,7 +423,7 @@
             <item>
              <widget class="QLabel" name="leverageLabel">
               <property name="text">
-               <string>Leverage</string>
+               <string>Max Leverage</string>
               </property>
              </widget>
             </item>
@@ -539,6 +590,45 @@
                 <width>0</width>
                 <height>25</height>
                </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="minWeightLayout">
+            <item>
+             <widget class="QLabel" name="minWeightLabel">
+              <property name="text">
+               <string>Min Weight</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="minWeightSpin">
+              <property name="maximum">
+               <double>100.000000000000000</double>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="maxWeightLayout">
+            <item>
+             <widget class="QLabel" name="maxWeightLabel">
+              <property name="text">
+               <string>Max Weight</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="maxWeightSpin">
+              <property name="maximum">
+               <double>100.000000000000000</double>
+              </property>
+              <property name="value">
+               <double>100.000000000000000</double>
               </property>
              </widget>
             </item>

@@ -43,22 +43,25 @@ class TestStrategy(object):
         self.roll_plen = 0
         self.roll_ptype = 'n'
 
+        self.min_weight = 0.0
+        self.max_weight = 1.0
+
     def __str__(self) -> str:
-        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Rate {:.6f} | Gap {:.4f} | Cov {:6} | Balance {:.2f}'.format(
+        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Weight {:.4f}-{:.4f} | Gap {:.4f} | Cov {:6} | Balance {:.2f}'.format(
             self.est_plen, self.est_ptype,
             self.roll_plen, self.roll_ptype,
             self.fix_fee, self.prc_fee,
-            self.risk_free,
+            self.min_weight, self.max_weight,
             self.reb_gap, 'OAS' if self.robust else 'Simple',
             self.init_balance)
         # return 'Estimation {} {} | Roll {} {}'.format(self.est_plen, self.est_ptype, self.roll_plen, self.roll_ptype)
 
     def name(self):
-        return 'e{}{}r{}{}ff{}pf{}r{}g{}c{}b{}'.format(
+        return 'e{}{}r{}{}ff{}pf{}w{}-{}g{}c{}b{}'.format(
             self.est_plen, self.est_ptype[0],
             self.roll_plen, self.roll_ptype[0],
             self.fix_fee, self.prc_fee,
-            self.risk_free,
+            self.min_weight, self.max_weight,
             self.reb_gap, 'R' if self.robust else 'S',
             int(self.init_balance))
 
@@ -69,6 +72,8 @@ class TestStrategy(object):
                    and self.roll_plen == o.roll_plen \
                    and self.roll_ptype == o.roll_ptype \
                    and self.init_balance == o.init_balance \
+                   and self.min_weight == o.min_weight \
+                   and self.max_weight == o.max_weight \
                    and self.reb_gap == o.reb_gap \
                    and self.prc_fee == o.prc_fee \
                    and self.fix_fee == o.fix_fee \
@@ -138,7 +143,7 @@ def make_stats(res):
 
     stats = [('start', 'Start', 'dt'),
              ('end', 'End', 'dt'),
-             ('rf', 'Risk-free rate', 'p'),
+             ('rf', 'Risk-free rate', 'ps'),
              (None, None, None),
              ('total_return', 'Total Return', 'p'),
              ('daily_sharpe', 'Daily Sharpe', 'n'),
@@ -209,6 +214,9 @@ def make_stats(res):
             raw = raw.map(fmtn)
         elif f == 'dt':
             raw = raw.map(lambda val: val.strftime('%Y-%m-%d'))
+        elif f == 'ps':
+            a = 1
+            b = 2
         else:
             raise NotImplementedError('unsupported format %s' % f)
 
