@@ -9,7 +9,7 @@ import pandas as pd
 import bt
 from bt import algos
 from ffn import fmtp, fmtn, asfreq_actual
-from hrp import WeightHRP, SaveWeights, GapWeights, CheckFeeBankrupt, WeightAdjust, WeightsToPerm, WeightTargetVol
+from hrp import WeightHRP, SaveWeights, GapWeights, CheckFeeBankrupt, WeightAdjust, WeightsToPerm, WeightTargetVol, LimitWeights
 
 
 def fee_func(q, p, ff, pf):
@@ -31,6 +31,7 @@ class TestStrategy(object):
         self.leverage = 1.0
         self.is_tvol = False
         self.tvol = 0.0
+        self.ddev = False
 
         self.reb_gap = 0.0
         self.weight_round = 0
@@ -47,22 +48,24 @@ class TestStrategy(object):
         self.max_weight = 1.0
 
     def __str__(self) -> str:
-        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Weight {:.4f}-{:.4f} | Gap {:.4f} | Cov {:6} | Balance {:.2f}'.format(
+        return 'Estimation {:5} {:5} - Roll {:5} {:5} | Fee {:.4f} + {:.4f} | Weight {:.4f}-{:.4f} | Gap {:.4f} | Cov {:6} | {:3} | Balance {:.2f}'.format(
             self.est_plen, self.est_ptype,
             self.roll_plen, self.roll_ptype,
             self.fix_fee, self.prc_fee,
             self.min_weight, self.max_weight,
             self.reb_gap, 'OAS' if self.robust else 'Simple',
+            'DD' if self.ddev else 'STD',
             self.init_balance)
         # return 'Estimation {} {} | Roll {} {}'.format(self.est_plen, self.est_ptype, self.roll_plen, self.roll_ptype)
 
     def name(self):
-        return 'e{}{}r{}{}ff{}pf{}w{}-{}g{}c{}b{}'.format(
+        return 'e{}{}r{}{}ff{}pf{}w{}-{}g{}c{}v{}b{}'.format(
             self.est_plen, self.est_ptype[0],
             self.roll_plen, self.roll_ptype[0],
             self.fix_fee, self.prc_fee,
             self.min_weight, self.max_weight,
             self.reb_gap, 'R' if self.robust else 'S',
+            'DD' if self.ddev else 'STD',
             int(self.init_balance))
 
     def __eq__(self, o: object) -> bool:
@@ -77,7 +80,8 @@ class TestStrategy(object):
                    and self.reb_gap == o.reb_gap \
                    and self.prc_fee == o.prc_fee \
                    and self.fix_fee == o.fix_fee \
-                   and self.robust == o.robust
+                   and self.robust == o.robust \
+                   and self.ddev == o.ddev
         return False
 
     def __hash__(self) -> int:
@@ -92,6 +96,7 @@ class TestStrategy(object):
         hsh = p * hsh + hash(self.prc_fee)
         hsh = p * hsh + hash(self.fix_fee)
         hsh = p * hsh + hash(self.robust)
+        hsh = p * hsh + hash(self.ddev)
         return hsh
 
 
@@ -117,7 +122,7 @@ class TestStrategy(object):
             algos.RunOnDate(*run_dates.index.tolist()),
             algos.SelectAll(),
             SaveWeights(),
-            WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust, cats=cats, graph_path=graph_path),
+            WeightHRP(plen=self.est_plen, ptype=self.est_ptype, robust=self.robust, ddev=self.ddev, cats=cats, graph_path=graph_path),
             GapWeights(self.reb_gap),
         ]
 
@@ -126,6 +131,7 @@ class TestStrategy(object):
 
         algo_stack.extend([
             WeightAdjust(self.leverage, self.weight_round),
+            LimitWeights(self.min_weight, self.max_weight),
             WeightsToPerm(),
             CheckFeeBankrupt(fee_func_parial),
             algos.Rebalance()

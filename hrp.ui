@@ -819,6 +819,17 @@
             </item>
            </layout>
           </item>
+          <item>
+           <layout class="QVBoxLayout" name="ddLayout">
+            <item>
+             <widget class="QCheckBox" name="ddCB">
+              <property name="text">
+               <string>Downside deviation</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
          </layout>
         </item>
         <item>

@@ -62,7 +62,7 @@ def getQuasiDiag(link):
     return sortIx.tolist()
 
 
-def getRecBipart(cov, sortIx):
+def getRecBipart(closes, ddev, sortIx):
     # Compute HRP alloc
     w = pd.Series(1, index=sortIx)
     cItems = [sortIx]  # initialize all items in one cluster
@@ -72,26 +72,35 @@ def getRecBipart(cov, sortIx):
         for i in range(0, len(cItems), 2):  # parse in pairs
             cItems0 = cItems[i]  # cluster 1
             cItems1 = cItems[i + 1]  # cluster 2
-            cVar0 = getClusterVar(cov, cItems0)
-            cVar1 = getClusterVar(cov, cItems1)
+            cVar0 = getClusterVar(closes, ddev, cItems0)
+            cVar1 = getClusterVar(closes, ddev, cItems1)
             alpha = 1 - cVar0 / (cVar0 + cVar1)
             w[cItems0] *= alpha  # weight 1
             w[cItems1] *= 1 - alpha  # weight 2
     return w
 
 
-def getClusterVar(cov, cItems):
+def getClusterVar(closes, ddev, cItems):
     # Compute variance per cluster
 
-    cov_ = cov.iloc[cItems, cItems]  # matrix slice
-    w_ = getIVP(cov_).reshape(-1, 1)
-    cVar = np.dot(np.dot(w_.T, cov_), w_)[0, 0]
+    closes = closes[closes.columns[cItems]]
+    ret = np.log(closes / closes.shift()).fillna(0.0)
+    quant = 1000000 * getIVP(ret.var(0).values) / closes.iloc[-1].values
+    price = np.sum(closes * quant, 1)
+    ret = np.log(price / price.shift()).fillna(0.0).values
+
+    if ddev:
+        ret[ret > 0] = 0.0
+        cVar = np.power(ret, 2).sum() / len(ret)
+    else:
+        cVar = np.var(ret)
+
     return cVar
 
 
-def getIVP(cov, **kargs):
+def getIVP(variance, **kargs):
     # Compute the inverse-variance portfolio
-    ivp = 1. / np.diag(cov)
+    ivp = 1. / variance
     ivp /= ivp.sum()
     return ivp
 
@@ -102,7 +111,7 @@ def cov_robust(X):
     return pd.DataFrame(oas.covariance_, index=X.columns, columns=X.columns)
 
 
-def get_weights(closes, robust, cats, graph_path):
+def get_weights(closes, robust, ddev, cats, graph_path):
     ret = np.log(closes / closes.shift()).fillna(0.0)
     corr = cov2cor(ret.cov() if robust else cov_robust(ret))
     dist = distance(corr)
@@ -120,7 +129,7 @@ def get_weights(closes, robust, cats, graph_path):
     #     cidx = np.where(cluster_idx ==cn)[0][0]
     #     clusters.loc[cidx] = quasiIdx[idx]
     # clusters = clusters.sort_index().values
-    weights = getRecBipart(ret.cov(), clusters)
+    weights = getRecBipart(closes, ddev, clusters)
     weights.index = closes.columns[weights.index]
 
     try:
@@ -248,10 +257,11 @@ class WeightsToPerm(Algo):
 
 class WeightHRP(Algo):
 
-    def __init__(self, plen, ptype, robust=False, cats=None, graph_path=None):
+    def __init__(self, plen, ptype, robust=False, ddev=False, cats=None, graph_path=None):
         super().__init__()
 
         self._robust = robust
+        self._ddev = ddev
         self._plen = plen
         self._ptype = ptype
         self._cats = cats.copy()# if cats is not None else None
@@ -268,7 +278,7 @@ class WeightHRP(Algo):
         idx = index[np.abs(index - idx).argmin()]
 
         prices = target.universe[selected].loc[idx: target.now].copy()
-        weights = get_weights(prices, self.robust, self._cats, self._grap_path)
+        weights = get_weights(prices, self.robust, self.ddev, self._cats, self._grap_path)
 
         target.temp['weights'] = weights.to_dict()
 
@@ -277,6 +287,10 @@ class WeightHRP(Algo):
     @property
     def robust(self):
         return self._robust
+
+    @property
+    def ddev(self):
+        return self._ddev
 
     @property
     def plen(self):
@@ -453,20 +467,24 @@ class WeightTargetVol(Algo):
 def min_max_rebalance(weights, minw, maxw, diff):
 
     nw = weights.copy()
-    diff = 0.0
     if diff < 0:
+        diff = 0.0
         nw = weights[weights > minw]
-        nw = nw - np.round(diff * nw, 6)
-        diff = nw[nw < minw] - minw
-        nw[nw < minw] = minw
+        nw = nw - np.round(diff * nw / nw.sum(), 6)
+        if np.any(nw < minw):
+            diff = nw[nw < minw] - minw
+            nw[nw < minw] = minw
     elif diff > 0:
+        diff = 0.0
         nw = weights[weights < maxw]
-        nw = nw + np.round(diff * nw, 6)
-        diff = nw[nw > maxw] - maxw
-        nw[nw > maxw] = maxw
+        nw = nw + np.round(diff * nw / nw.sum(), 6)
+        if np.any(nw > maxw):
+            diff = nw[nw > maxw] - maxw
+            nw[nw > maxw] = maxw
 
+    weights.loc[nw.index] = nw
     if diff != 0:
-        nw = min_max_rebalance(nw, minw, maxw, diff)
+        nw = min_max_rebalance(weights, minw, maxw, diff)
 
     return nw
 
@@ -518,7 +536,7 @@ class LimitWeights(Algo):
         tw[tw > self.max_limit] = self.max_limit
 
         ntws = tw.sum().round(6)
-        diff = ntws - tws
+        diff = np.round(tws - ntws, 8)
 
         tw = min_max_rebalance(tw, self.min_limit, self.max_limit, diff)
 

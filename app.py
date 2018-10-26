@@ -109,6 +109,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         strategy.fix_fee = self.fix_fee
         strategy.prc_fee = self.prc_fee
         strategy.reb_gap = np.round(self.rebgapSpin.value() / 100, 6)
+        strategy.ddev = self.ddCB.isChecked()
         strategy.weight_round = int(self.decimalSpin.value())
         if self.rateFileEdit.text() and exists(self.rateFileEdit.text()):
             strategy.risk_free = self.rateFileEdit.text()
@@ -200,7 +201,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     fdate = data.index[0] + relativedelta(**{s.est_ptype: s.est_plen})
                     prices = res.backtests[k].strategy.prices
                     if isinstance(v, str):
-                        v = pd.read_csv(v)
+                        v = pd.read_excel(v)
                         v = v[v.columns[0]]
                     else:
                         v = float(v)
