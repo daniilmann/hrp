@@ -56,6 +56,7 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
         self.strategyList.setModel(self.strategyListModel)
 
         self.dataFileButton.clicked.connect(self.select_data_path)
+        self.rateFileButton.clicked.connect(self.select_rate_path)
         self.addStrategyBtn.clicked.connect(self.add_strategy)
         self.removeStrategyBtn.clicked.connect(self.remove_strategy)
         self.reportFileBtn.clicked.connect(self.select_report_dir)
@@ -92,6 +93,12 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
 
         if not dataPath.isEmpty():
             self.dataFileEdit.setText(dataPath.path()[1:])
+
+    def select_rate_path(self):
+        dataPath = qtw.QFileDialog.getOpenFileUrl(self, caption='Select Rate File')[0]
+
+        if not dataPath.isEmpty():
+            self.rateFileEdit.setText(dataPath.path()[1:])
 
     def select_report_dir(self):
         dataPath = qtw.QFileDialog.getExistingDirectoryUrl(self, caption='Select directory for report')
@@ -188,6 +195,9 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                 backtests = []
                 rfs = dict()
                 for s in self._strategies:
+                    if s.min_weight * data.shape[1] > s.leverage:
+                        raise Exception('Sum of min weights ({:.4f}) more than leverage ({:.4f})\n{}'
+                                        .format(s.min_weight, s.leverage, str(s)))
                     graph_dir = join(out_dir, s.name())
                     if exists(graph_dir):
                         shutil.rmtree(graph_dir)
@@ -202,7 +212,11 @@ class HRPApp(qtw.QMainWindow, design.Ui_mainWindow):
                     prices = res.backtests[k].strategy.prices
                     if isinstance(v, str):
                         v = pd.read_excel(v)
-                        v = v[v.columns[0]]
+                        v = v.set_index(pd.DatetimeIndex(pd.to_datetime(v[date_column], format=date_format)))
+                        v = v.sort_index()
+                        column = v.columns[1]
+                        v['Price'] = prices
+                        v = v.fillna(method='pad').fillna(0.0)[column]
                     else:
                         v = float(v)
                     perfs[k] = PerformanceStats(prices.loc[prices.index >= fdate], v)

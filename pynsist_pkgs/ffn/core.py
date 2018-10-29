@@ -60,7 +60,7 @@ class PerformanceStats(object):
         self._start = self.prices.index[0]
         self._end = self.prices.index[-1]
 
-        if not isinstance(v, float):
+        if not isinstance(rf, float):
             rf = rf.copy().loc[prices.index]
 
         self.rf = rf

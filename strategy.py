@@ -131,7 +131,7 @@ class TestStrategy(object):
 
         algo_stack.extend([
             WeightAdjust(self.leverage, self.weight_round),
-            LimitWeights(self.min_weight, self.max_weight),
+            LimitWeights(self.min_weight, self.max_weight, self.leverage),
             WeightsToPerm(),
             CheckFeeBankrupt(fee_func_parial),
             algos.Rebalance()

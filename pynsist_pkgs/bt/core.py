@@ -1150,6 +1150,13 @@ class SecurityBase(Node):
         # call parent
         self.parent.adjust(-full_outlay, update=update, flow=False, fee=fee)
 
+    def allocate_predef(self, q, outlay, fee):
+        self._needupdate = True
+        self._position += q
+        self._outlay += outlay
+        self.parent.adjust(-outlay - fee, update=True, flow=False, fee=fee)
+
+
     def commission(self, q, p):
         """
         Calculates the commission (transaction fee) based on quantity and

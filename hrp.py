@@ -113,7 +113,7 @@ def cov_robust(X):
 
 def get_weights(closes, robust, ddev, cats, graph_path):
     ret = np.log(closes / closes.shift()).fillna(0.0)
-    corr = cov2cor(ret.cov() if robust else cov_robust(ret))
+    corr = cov2cor(cov_robust(ret) if robust else ret.cov())
     dist = distance(corr)
     link = linkage(dist, 'ward')
     quasiIdx = np.array(dendrogram(link)['leaves'])
@@ -485,8 +485,9 @@ def min_max_rebalance(weights, minw, maxw, diff):
     weights.loc[nw.index] = nw
     if diff != 0:
         nw = min_max_rebalance(weights, minw, maxw, diff)
+        weights.loc[nw.index] = nw
 
-    return nw
+    return weights
 
 
 class LimitWeights(Algo):
@@ -514,10 +515,11 @@ class LimitWeights(Algo):
 
     """
 
-    def __init__(self, min_limit=0.0, max_limit=1.0):
+    def __init__(self, min_limit=0.0, max_limit=1.0, leverage=1.0):
         super(LimitWeights, self).__init__()
         self.min_limit = min_limit
         self.max_limit = max_limit
+        self.leverage = leverage
 
     def __call__(self, target):
         if 'weights' not in target.temp:
@@ -527,18 +529,24 @@ class LimitWeights(Algo):
         if len(tw) == 0:
             return True
 
+        minw = self.min_limit
+        maxw = self.max_limit
+
         if isinstance(tw, dict):
             tw = pd.Series(tw)
 
+        if not np.any(tw < minw) and not np.any(tw > maxw):
+            return True
+
         tws = tw.sum().round(6)
 
-        tw[tw < self.min_limit] = self.min_limit
-        tw[tw > self.max_limit] = self.max_limit
+        tw[tw < minw] = minw
+        tw[tw > maxw] = maxw
 
         ntws = tw.sum().round(6)
         diff = np.round(tws - ntws, 8)
 
-        tw = min_max_rebalance(tw, self.min_limit, self.max_limit, diff)
+        tw = min_max_rebalance(tw, minw, maxw, diff)
 
         target.temp['weights'] = tw.to_dict()
 
